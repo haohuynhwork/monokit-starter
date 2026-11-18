@@ -1,0 +1,107 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/pages/index.md
+
+enum PageStatus {
+  @@type("pg/text@1")
+  draft     = "draft"
+  scheduled = "scheduled"
+  published = "published"
+}
+
+// Named, shared frames (template, header/footer style, sidebar blocks).
+// Editing one changes every page that uses it.
+model PageLayout {
+  id        BigInt            @id @default(autoincrement())
+  name      Varchar(100)
+  // { version, template, width, header, footer, background, spacing,
+  //   sidebar }; checked in the domain
+  settings  Jsonb
+  // The layout of pages without layoutId; exactly one (the domain keeps it)
+  isDefault Boolean           @default(false)
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt TimestamptzString?
+
+  @@index([name], where: sql`("deletedAt" IS NULL)`, unique: true, name: "page_layouts_name_unique")
+  @@index([isDefault], where: sql`("isDefault")`, unique: true, name: "page_layouts_one_default")
+  @@check(expression: sql`jsonb_typeof("settings") = 'object'`, name: "page_layouts_settings_is_object")
+  @@check(expression: sql`NOT "isDefault" OR "deletedAt" IS NULL`, name: "page_layouts_default_live")
+}
+
+model Page {
+  id          BigInt            @id @default(autoincrement())
+  // Source of truth for the tree; PageClosure is derived from it
+  parentId    BigInt?
+  parent      Page?             @relation("PageTree", fields: [parentId], references: [id], onDelete: Restrict)
+  authorId    BigInt?
+  author      User?             @relation("PageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  // NULL: the default layout
+  layoutId    BigInt?
+  layout      PageLayout?       @relation(fields: [layoutId], references: [id], onDelete: Restrict)
+
+  title       Varchar(255)
+  // Same rules as Post.slug / Post.fullSlug
+  slug        Varchar(255)?
+  fullSlug    Varchar(2048)?
+  // Meta description
+  description Varchar(500)?
+  // { version, layout overrides, page options, blocks: [{ id, type, props }] }
+  settings    Jsonb
+
+  status      PageStatus        @default(draft)
+  publishedAt TimestamptzString?
+
+  // Site header menu; order among siblings
+  showInMenu  Boolean           @default(false)
+  menuOrder   Int               @default(0)
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt   TimestamptzString?
+
+  @@index([fullSlug], where: sql`("fullSlug" IS NOT NULL AND "deletedAt" IS NULL)`, unique: true, name: "pages_full_slug_unique")
+  @@index([parentId])
+  @@index([authorId])
+  @@index([layoutId])
+
+  @@check(expression: sql`"slug" IS NULL OR ("slug" = btrim("slug") AND "slug" <> '')`, name: "pages_slug_not_blank")
+  @@check(expression: sql`"status" = 'draft' OR ("fullSlug" IS NOT NULL AND "publishedAt" IS NOT NULL)`, name: "pages_live_has_url")
+  @@check(expression: sql`jsonb_typeof("settings") = 'object' AND jsonb_typeof("settings"->'blocks') = 'array'`, name: "pages_settings_shape")
+}
+
+// Every ancestor/descendant pair, including each page with itself (depth 0)
+model PageClosure {
+  descendantId BigInt
+  descendant   Page   @relation("PageClosureDescendant", fields: [descendantId], references: [id], onDelete: Cascade)
+  ancestorId   BigInt
+  ancestor     Page   @relation("PageClosureAncestor", fields: [ancestorId], references: [id], onDelete: Cascade)
+  depth        Int
+
+  @@id([ancestorId, descendantId])
+  @@index([descendantId, depth])
+  @@check(expression: sql`"depth" >= 0`, name: "page_closure_depth")
+}
+
+// A page's text in a non-default locale; same rules as PostTranslation
+model PageTranslation {
+  id          BigInt            @id @default(autoincrement())
+  pageId      BigInt
+  page        Page              @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  localeId    BigInt
+  locale      Locale            @relation(fields: [localeId], references: [id], onDelete: Restrict)
+  title       Varchar(255)
+  slug        Varchar(255)?
+  fullSlug    Varchar(2048)?
+  description Varchar(500)?
+  // Same shape as Page.settings; NULL: the page's own blocks
+  settings    Jsonb?
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([pageId, localeId])
+  @@index([localeId, fullSlug], where: sql`("fullSlug" IS NOT NULL)`, unique: true, name: "page_translations_full_slug_unique")
+  @@index([localeId])
+  @@check(expression: sql`"slug" IS NULL OR ("slug" = btrim("slug") AND "slug" <> '')`, name: "page_translations_slug_not_blank")
+  @@check(expression: sql`"settings" IS NULL OR (jsonb_typeof("settings") = 'object' AND jsonb_typeof("settings"->'blocks') = 'array')`, name: "page_translations_settings_shape")
+}

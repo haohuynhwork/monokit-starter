@@ -1,0 +1,36 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  unrs-resolver: true
+  "@prisma/engines": true
+  esbuild: true
+  prisma: true
+  msgpackr-extract: true
+  workerd: true
+  # Install-time telemetry from swagger-ui-dist; not needed
+  "@scarf/scarf": false
+  # Postinstall only checks protobufjs CLI deps; Apollo doesn't need it
+  "@apollo/protobufjs": false
+  # Tailwind CLI's watcher ships a prebuilt binary (@parcel/watcher-<platform>);
+  # its install script only builds from source when that's missing
+  "@parcel/watcher": false
+  '@swc/core': true
+minimumReleaseAgeExclude:
+  - "@prisma/*"
+  - bullmq@6.5.3
+  - prisma@8.0.0-rc.34
+  - "@tanstack/router-generator@1.168.0"
+  - "@tanstack/router-plugin@1.169.0"
+  - "@tanstack/router-utils@1.163.0"
+overrides:
+  # The prisma CLI imports @prisma/composer-cli (Prisma's cloud deploy tool)
+  # at start, but composer's own code (alchemy and its AWS/GCP/Cloudflare
+  # SDKs, ~1.2 GB) loads only when a composer command runs. We never run
+  # one (deploy, dev, emulator...), so cut those edges; contract, migration
+  # and db commands don't touch them. Remove these once Prisma makes
+  # composer optional.
+  "@prisma/composer-cli>@prisma/composer": "-"
+  "@prisma/composer-cli>alchemy": "-"
+  "@prisma/composer-cli>effect": "-"
+  "@prisma/composer-cli>esbuild": "-"

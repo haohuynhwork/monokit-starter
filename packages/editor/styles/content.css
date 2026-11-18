@@ -1,0 +1,174 @@
+/*
+ * Rich-text content styles: post, product and page bodies on the site and
+ * inside the TinyMCE editor (content_css), so what you edit is what readers
+ * see. Tailwind Typography (`prose`), like oc-shield.
+ *
+ * SOURCE file: scripts/build-css.mjs builds it into each app's
+ * public/styles/content.css (`make content-css`; also part of web `dev` and
+ * `build`, and the panel's copy-assets). Edit this one, not the outputs. A
+ * static file because the editor's iframe loads it by URL.
+ *
+ * Colors come from the app's theme tokens (the editor injects their values
+ * into its iframe, see themeContentStyle), so light and dark both follow
+ * the app; the fallbacks are for anywhere without them.
+ */
+
+/* The theme only to resolve `prose`; nothing global is emitted */
+@import "tailwindcss/theme.css" theme(reference);
+@import "tailwindcss/utilities.css" source(none);
+@plugin "@tailwindcss/typography";
+
+.app_content {
+  @apply prose max-w-none;
+}
+
+/* Prose colors from the app's theme tokens (light and dark) */
+.app_content {
+  --tw-prose-body: var(--foreground, #171717);
+  --tw-prose-headings: var(--foreground, #171717);
+  --tw-prose-lead: var(--muted-foreground, #737373);
+  --tw-prose-links: var(--primary, #171717);
+  --tw-prose-bold: var(--foreground, #171717);
+  --tw-prose-counters: var(--muted-foreground, #737373);
+  --tw-prose-bullets: var(--border, #e5e5e5);
+  --tw-prose-hr: var(--border, #e5e5e5);
+  --tw-prose-quotes: var(--foreground, #171717);
+  --tw-prose-quote-borders: var(--border, #e5e5e5);
+  --tw-prose-captions: var(--muted-foreground, #737373);
+  --tw-prose-kbd: var(--foreground, #171717);
+  --tw-prose-code: var(--foreground, #171717);
+  --tw-prose-pre-code: var(--foreground, #171717);
+  --tw-prose-pre-bg: var(--muted, #f5f5f5);
+  --tw-prose-th-borders: var(--border, #e5e5e5);
+  --tw-prose-td-borders: var(--border, #e5e5e5);
+
+  /* Kept from the old stylesheet, used by the rules below */
+  --content-border: var(--border, #e5e5e5);
+
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  overflow-wrap: break-word;
+  /* As the site's <html> (Tailwind's antialiased), also in the editor */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tighter than prose's defaults (1.25em between paragraphs, 1.75 line
+   height), which read as double spacing. Same specificity as prose's own
+   rules and later, so these win. */
+.app_content {
+  line-height: 1.2;
+}
+.app_content :where(p) {
+  margin: 0.5em 0;
+}
+/* Empty paragraphs (blank lines typed in the editor) are saved as <p></p>,
+   since valid_elements: "*[*]" drops TinyMCE's pad-with-&nbsp; rule. The
+   editor shows each as a line; so do the site and the preview. In the
+   editor they hold a <br>, so this never doubles them. */
+.app_content :where(p):empty::before {
+  content: "\a0";
+}
+
+/* The editor's iframe body is the .app_content element itself: as wide as
+   the site's content column (max-w-5xl px-4), so lines and images wrap the
+   same */
+body.app_content {
+  box-sizing: border-box;
+  max-width: 64rem;
+  margin: 0.5em auto;
+  padding-inline: 1rem;
+}
+
+/* Code blocks with a language: the editor skin styles them for Prism
+   (light background, text shadow, its own padding); keep prose's look, as
+   on the site. More specific than the skin's pre[class*=language-]. */
+.app_content pre[class*="language-"] {
+  margin: 1.7em 0;
+  padding: 0.85em 1.15em;
+  border-radius: 0.375rem;
+  background: var(--tw-prose-pre-bg);
+  color: var(--tw-prose-pre-code);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  line-height: 1.7;
+  text-shadow: none;
+}
+.app_content code[class*="language-"] {
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-shadow: none;
+}
+
+/* Full editor output: embeds, media, accordions, page breaks, floats */
+.app_content iframe,
+.app_content video {
+  display: block;
+  max-width: 100%;
+  border: 0;
+  border-radius: 0.5rem;
+}
+.app_content iframe[src*="youtube"],
+.app_content iframe[src*="vimeo"] {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+.app_content audio {
+  width: 100%;
+}
+.app_content img {
+  max-width: 100%;
+  height: auto;
+}
+/* Captioned images (image_caption): as wide as the image, caption
+   centered under it. Aligned with the classes the editor's alignment
+   formats write (FIGURE_ALIGN_CLASSES in rich-text-editor/plugins/
+   content-formats.ts); keep both in sync. */
+.app_content figure.image {
+  display: table;
+}
+.app_content figure.align-left {
+  float: left;
+  margin-right: 1.5em;
+}
+.app_content figure.align-right {
+  float: right;
+  margin-left: 1.5em;
+}
+.app_content figure.image.align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+.app_content figure.image img {
+  margin: 0;
+}
+.app_content figure.image figcaption {
+  text-align: center;
+}
+.app_content details {
+  border: 1px solid var(--content-border);
+  border-radius: 0.5rem;
+  padding: 0.5em 0.75em;
+}
+.app_content summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.app_content details[open] > summary {
+  margin-bottom: 0.5em;
+}
+/* Page breaks: only for printing */
+.app_content hr.page-break {
+  border: 0;
+  margin: 0;
+  break-after: page;
+}
+.app_content [dir="rtl"] {
+  text-align: right;
+}
+.app_content::after {
+  content: "";
+  display: table;
+  clear: both;
+}

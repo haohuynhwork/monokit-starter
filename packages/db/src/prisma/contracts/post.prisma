@@ -1,0 +1,140 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/posts/index.md
+
+enum PostStatus {
+  @@type("pg/text@1")
+  draft     = "draft"
+  scheduled = "scheduled"
+  published = "published"
+}
+
+model Post {
+  id          BigInt            @id @default(autoincrement())
+  // Source of truth for the tree; PostClosure is derived from it. Change
+  // both in one transaction. RESTRICT: a post with children can't go.
+  parentId    BigInt?
+  parent      Post?             @relation("PostTree", fields: [parentId], references: [id], onDelete: Restrict)
+  authorId    BigInt?
+  author      User?             @relation("PostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  // URL name; NULL while the post has no URL. Unique through fullSlug.
+  // May contain '/'.
+  slug        Varchar(255)?
+  // Slugs of ancestors and self joined by '/'; NULL when this post or an
+  // ancestor has no slug. Lookup by path only: never split or prefix-match.
+  fullSlug    Varchar(2048)?
+  title       Varchar(255)
+  // Sanitized HTML (TinyMCE). Inline images are /files/... URLs of public
+  // assets, tracked as 'inline' asset usages.
+  content        String            @default("")
+  // Excerpt and meta description
+  description Varchar(500)?
+  // Tags live in PostTag / PostTagging
+
+  status      PostStatus        @default(draft)
+  // When it goes or went live; required unless draft
+  publishedAt TimestamptzString?
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+  // Soft delete
+  deletedAt   TimestamptzString?
+
+  // The only uniqueness rule: no two live posts share a path. (Siblings with
+  // the same slug would share one, so this covers them too.)
+  @@index([fullSlug], where: sql`("fullSlug" IS NOT NULL AND "deletedAt" IS NULL)`, unique: true, name: "posts_full_slug_unique")
+  @@index([parentId])
+  @@index([authorId])
+  @@index([publishedAt], where: sql`("status" = 'published' AND "deletedAt" IS NULL)`, name: "posts_published")
+  // Panel search; title weighs more than content
+  @@fullTextIndex([title, content], name: "posts_search")
+
+  @@check(expression: sql`"slug" IS NULL OR ("slug" = btrim("slug") AND "slug" <> '')`, name: "posts_slug_not_blank")
+  // A published or scheduled post must be reachable and dated
+  @@check(expression: sql`"status" = 'draft' OR ("fullSlug" IS NOT NULL AND "publishedAt" IS NOT NULL)`, name: "posts_live_has_url")
+}
+
+// Every ancestor/descendant pair, including each post with itself (depth 0)
+model PostClosure {
+  descendantId BigInt
+  descendant   Post   @relation("PostClosureDescendant", fields: [descendantId], references: [id], onDelete: Cascade)
+  ancestorId   BigInt
+  ancestor     Post   @relation("PostClosureAncestor", fields: [ancestorId], references: [id], onDelete: Cascade)
+  depth        Int
+
+  @@id([ancestorId, descendantId])
+  // Breadcrumbs; the id covers subtrees
+  @@index([descendantId, depth])
+  @@check(expression: sql`"depth" >= 0`, name: "post_closure_depth")
+}
+
+// Labels across the tree, browsed at /tags/<slug> (ideas/posts/tags.md).
+// Hard delete: deleting one removes its taggings.
+model PostTag {
+  id        BigInt            @id @default(autoincrement())
+  // Shown as typed, e.g. "Travel"
+  name      Varchar(100)
+  // URL name and identity: "Travel" and "travel " are the same tag
+  slug      Varchar(100)
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+
+  @@index([slug], unique: true, name: "post_tags_slug_unique")
+}
+
+// Owned by the Post aggregate; rewritten when its tags change
+model PostTagging {
+  postId   BigInt
+  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagId    BigInt
+  tag      PostTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  // Order on the post; the first tag is the primary one
+  position Int     @default(0)
+
+  @@id([postId, tagId])
+  // Posts with a tag
+  @@index([tagId])
+}
+
+// A post's text in a non-default locale (ideas/i18n/index.md). The post row
+// holds the default locale's text; a missing row falls back to it.
+model PostTranslation {
+  id          BigInt            @id @default(autoincrement())
+  postId      BigInt
+  post        Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // Restrict: deactivate a locale that has translations instead
+  localeId    BigInt
+  locale      Locale            @relation(fields: [localeId], references: [id], onDelete: Restrict)
+  title       Varchar(255)
+  // NULL: the post's own slug in this locale's path
+  slug        Varchar(255)?
+  // Path in this locale, from each ancestor's slug in it (else its own).
+  // NULL when the post has no URL or is deleted. Written with Post.fullSlug.
+  fullSlug    Varchar(2048)?
+  content     String            @default("")
+  description Varchar(500)?
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([postId, localeId])
+  @@index([localeId, fullSlug], where: sql`("fullSlug" IS NOT NULL)`, unique: true, name: "post_translations_full_slug_unique")
+  @@index([localeId])
+  @@check(expression: sql`"slug" IS NULL OR ("slug" = btrim("slug") AND "slug" <> '')`, name: "post_translations_slug_not_blank")
+}
+
+// A tag's name and URL name in a non-default locale
+model PostTagTranslation {
+  id        BigInt            @id @default(autoincrement())
+  tagId     BigInt
+  tag       PostTag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  localeId  BigInt
+  locale    Locale            @relation(fields: [localeId], references: [id], onDelete: Restrict)
+  name      Varchar(100)
+  slug      Varchar(100)
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([tagId, localeId])
+  @@index([localeId, slug], unique: true, name: "post_tag_translations_slug_unique")
+}

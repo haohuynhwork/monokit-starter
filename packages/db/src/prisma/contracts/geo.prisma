@@ -1,0 +1,75 @@
+// use prisma-8
+
+// Reference data of the geo context (apps/api/src/geo), managed by staff.
+
+// Address pick list, managed by staff. Seeded from @packages/geo (ISO 3166-2);
+// children (e.g. VN wards) hang off parentId. Codes are kept forever once an
+// address uses them: retire a region with active = false, never delete it.
+model Region {
+  id          BigInt            @id @default(autoincrement())
+  // ISO 3166-1 alpha-2
+  countryCode Varchar(2)
+  parentId    BigInt?
+  parent      Region?           @relation("RegionTree", fields: [parentId], references: [id], onDelete: Restrict)
+  // ISO 3166-2 when one exists (e.g. 'VN-HN'), else a staff-chosen code
+  code        Varchar(20)
+  name        Varchar(255)
+  // Order among siblings, ascending; ties by name
+  position    Int               @default(0)
+  // Inactive: hidden from the picker, still valid on existing addresses
+  active      Boolean           @default(true)
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([code])
+  @@index([countryCode, parentId])
+  @@index([parentId])
+}
+
+// Locales of the site: a language plus region conventions (dates, numbers).
+// Exactly one default (the fallback); inactive ones are hidden from switchers.
+model Locale {
+  id         BigInt            @id @default(autoincrement())
+  // BCP 47: 'vi-VN', 'en-US', 'en'
+  code       Varchar(16)
+  // In English ('Vietnamese (Vietnam)'), and in itself ('Tiếng Việt')
+  name       Varchar(100)
+  nativeName Varchar(100)
+  // Right-to-left script (Arabic, Hebrew)
+  rtl        Boolean           @default(false)
+  active     Boolean           @default(true)
+  isDefault  Boolean           @default(false)
+  position   Int               @default(0)
+  createdAt  TimestamptzString @default(now())
+  updatedAt  TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([code])
+  @@index([isDefault], where: sql`("isDefault")`, unique: true, name: "locales_one_default")
+  @@check(expression: sql`NOT "isDefault" OR "active"`, name: "locales_default_active")
+}
+
+
+// Currencies the shop can show prices in. Prices are stored in the base
+// currency (config shop.currency); rate converts: 1 base = rate of this one.
+// The base row's rate is always 1.
+model Currency {
+  id        BigInt            @id @default(autoincrement())
+  // ISO 4217, upper-case
+  code      Varchar(3)
+  name      Varchar(100)
+  symbol    Varchar(10)       @default("")
+  // Minor-unit digits: 2 for USD, 0 for VND
+  decimals  Int               @default(2)
+  rate      NumericString(20, 10)   @default(1)
+  // When the rate was last set
+  rateAt    TimestamptzString @default(now())
+  active    Boolean           @default(true)
+  position  Int               @default(0)
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([code])
+  @@check(expression: sql`"code" = upper("code")`, name: "currencies_code_upper")
+  @@check(expression: sql`"decimals" BETWEEN 0 AND 4`, name: "currencies_decimals_range")
+  @@check(expression: sql`"rate" > 0`, name: "currencies_rate_positive")
+}

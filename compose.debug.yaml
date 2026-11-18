@@ -1,0 +1,13 @@
+# Debug overlay: docker compose -f compose.yaml -f compose.debug.yaml up
+# Then attach from VS Code (.vscode/launch.json). Inspector ports are bound to localhost only.
+# Debug migrations separately (pauses until attached): pnpm docker:debug:migrate
+services:
+  web:
+    environment:
+      # next dev runs the app in a child process on the next port (9231)
+      NODE_OPTIONS: --inspect=0.0.0.0:9230
+    ports: ["127.0.0.1:9230-9231:9230-9231"]
+
+  api:
+    command: pnpm --filter @apps/api exec nest start --debug 0.0.0.0:9229 --watch
+    ports: ["127.0.0.1:9229:9229"]

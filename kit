@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Short front end for the Makefile: `./kit [make options] <target> [VAR=...] [-- cmd...]`.
+# Targets are exactly the ones in `make help`; nothing is renamed or inferred.
+#   ./kit                          -> make help
+#   ./kit dev:api                  -> make dev:api
+#   ./kit dev:api.sh -- pnpm test  -> make dev:api.sh c="pnpm test"
+#   . ./kit                        -> sets up this shell: `kit` command + tab completion
+
+# Sourced (`. ./kit`): load completion into the current shell, run nothing.
+if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
+	. "$(dirname "${BASH_SOURCE[0]}")/make/completion.bash"
+	return
+fi
+
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# Everything before `--` goes to make as is (default target: help).
+args=()
+while [[ $# -gt 0 && $1 != -- ]]; do
+	args+=("$1")
+	shift
+done
+# `-- cmd args...` becomes c="cmd args..." (quoting kept for the recipe shell).
+if [[ $# -gt 1 ]]; then
+	shift
+	args+=("c=$(printf '%q ' "$@")")
+fi
+exec make "${args[@]}"

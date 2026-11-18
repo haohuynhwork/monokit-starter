@@ -1,0 +1,10 @@
+/*
+ * Tailwind's base reset (preflight) for the rich-text editor's iframe and
+ * its preview, which can't see the app's CSS. The site has it already
+ * (globals.css), so content looks the same in both. Loaded before
+ * content.css; editor-only, never on the site.
+ *
+ * SOURCE file: built into each app's public/styles/editor-base.css by
+ * scripts/build-css.mjs, with content.css.
+ */
+@import "tailwindcss/preflight.css";

@@ -1,0 +1,10 @@
+@import "@packages/ui/globals.css";
+
+/* Tailwind scans this app's classes too (globals.css lists apps/web) */
+@source "./**/*.{ts,tsx}";
+
+/* The theme's --font-sans refers to itself (apps/web fills it in with
+   next/font); the panel has no next/font, so give it a system stack */
+:root {
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}

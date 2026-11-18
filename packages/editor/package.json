@@ -1,0 +1,43 @@
+{
+  "name": "@packages/editor",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "editor-css": "./scripts/build-css.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./host": "./src/host.ts",
+    "./media-picker": "./src/media-picker/index.ts",
+    "./rich-text-editor": "./src/rich-text-editor/index.ts",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@codemirror/lang-html": "^6.4.12",
+    "@codemirror/language": "^6.13.1",
+    "@lezer/highlight": "^1.2.5",
+    "@packages/contracts": "workspace:*",
+    "@packages/ui": "workspace:*",
+    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
+    "@tinymce/tinymce-react": "^6.3.1",
+    "codemirror": "^6.0.2",
+    "handlebars": "^4.7.10",
+    "lucide-react": "^1.65.0",
+    "tailwindcss": "^4",
+    "tinymce": "^8.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "^6.0.3"
+  }
+}

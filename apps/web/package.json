@@ -1,0 +1,47 @@
+{
+  "name": "@apps/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "node scripts/copy-assets.mjs",
+    "content-css": "editor-css public/styles",
+    "content-css:watch": "editor-css public/styles --watch",
+    "dev": "node scripts/copy-assets.mjs && vite dev",
+    "build": "node scripts/copy-assets.mjs && vite build && tsc --noEmit",
+    "start": "srvx --prod --static ../client dist/server/server.js",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/copy-assets.mjs"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@packages/contracts": "workspace:*",
+    "@packages/editor": "workspace:*",
+    "@packages/geo": "workspace:*",
+    "@packages/ui": "workspace:*",
+    "@tanstack/react-router": "^1.170.0",
+    "@tanstack/react-start": "^1.169.5",
+    "glightbox": "^3.3.1",
+    "lucide-react": "^1.65.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "socket.io-client": "^4.8.4",
+    "srvx": "^1.0.8",
+    "swiper": "^12.2.0",
+    "tinymce": "^8.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/devtools-vite": "^0.8.6",
+    "@tanstack/react-devtools": "^0.10.14",
+    "@tanstack/react-router-devtools": "^1.167.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "^8.0.0"
+  }
+}

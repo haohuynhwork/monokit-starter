@@ -1,0 +1,138 @@
+name: ${PROJECT_NAME:-monokit}
+
+x-database-url: &database-url postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}
+
+x-node: &node
+  build: { context: ., dockerfile: ./docker/development/Dockerfile.dev }
+  image: ${COMPOSE_PROJECT_NAME}-base
+  volumes:
+    - .:/repo
+    - api_node_modules:/repo/apps/api/node_modules
+    - web_node_modules:/repo/apps/web/node_modules
+    - db_node_modules:/repo/packages/db/node_modules
+    - nest_node_modules:/repo/packages/nest/node_modules
+    - contracts_node_modules:/repo/packages/contracts/node_modules
+    - geo_node_modules:/repo/packages/geo/node_modules
+    - ui_node_modules:/repo/packages/ui/node_modules
+    - pnpm_store:/pnpm/store
+
+services:
+  # Only started by the dev container (.devcontainer/), which names it explicitly.
+  # workspace:
+  #   <<: *node
+  #   profiles: [devcontainer]
+  #   command: sleep infinity
+  #   networks: [frontend, backend]
+  #   environment:
+  #     DATABASE_URL: *database-url
+  #     API_URL: http://api:3001
+  #   depends_on:
+  #     install: { condition: service_completed_successfully }
+
+  # install:
+  #   networks: [frontend]
+  #   <<: *node
+  #   command: sh -c "pnpm install --frozen-lockfile --store-dir /pnpm/store && pnpm --filter \"./packages/*\" build"
+
+  # web:
+  #   networks: [frontend]
+  #   <<: *node
+  #   command: pnpm --filter @apps/web dev --host 0.0.0.0
+  #   environment:
+  #     API_URL: http://api:3001 # SSR reads and the /api proxy -> compose network
+  #   ports: ["${WEB_PORT:-3002}:${WEB_PORT:-3002}"]
+  #   depends_on:
+  #     install: { condition: service_completed_successfully }
+  #     api: { condition: service_started }
+
+  # api:
+  #   networks: [frontend, backend]
+  #   <<: *node
+  #   command: pnpm --filter @apps/api start:dev
+  #   environment:
+  #     PORT: 3001
+  #     DATABASE_URL: *database-url
+  #     JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  #     JWT_SECRET_PREVIOUS: ${JWT_SECRET_PREVIOUS:-}
+  #     APP_SECRET: ${APP_SECRET:-}
+  #     APP_SECRET_PREVIOUS: ${APP_SECRET_PREVIOUS:-}
+  #     PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+  #     VALKEY_URL: ${VALKEY_URL:-valkey://:${VALKEY_PASSWORD:-}@valkey:6379}
+  #     BULLMQ_PREFIX: ${BULLMQ_PREFIX:-}
+  #   ports: ["${API_PORT:-3001}:3001"]
+  #   depends_on:
+  #     install: { condition: service_completed_successfully }
+  #     migrate: { condition: service_completed_successfully }
+
+  # migrate:
+  #   networks: [backend]
+  #   <<: *node
+  #   command: pnpm --filter @packages/db migrate
+  #   environment:
+  #     DATABASE_URL: *database-url
+  #   depends_on:
+  #     install: { condition: service_completed_successfully }
+  #     db: { condition: service_healthy }
+
+  db:
+    networks: [backend]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    ports: ["${DB_PORT:-5432}:5432"]
+    volumes: [pg_data:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 3s
+      retries: 10
+
+  # Queued mail (ideas/mail "Queue"); AOF so jobs survive a restart
+  valkey:
+    networks: [backend]
+    image: valkey/valkey:8-alpine
+    # As in prod; no password in dev unless VALKEY_PASSWORD is set
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${VALKEY_PASSWORD:-}
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-0}
+      - --maxmemory-policy
+      - noeviction
+    environment:
+      # valkey-cli (the healthcheck) authenticates with it
+      REDISCLI_AUTH: ${VALKEY_PASSWORD:-}
+    ports: ["${VALKEY_PORT:-6379}:6379"]
+    volumes: [valkey_data:/data]
+    healthcheck:
+      # valkey-cli exits 0 on an error reply too (e.g. NOAUTH): require PONG.
+      # An empty REDISCLI_AUTH would send an empty AUTH; drop it then.
+      test:
+        [
+          "CMD-SHELL",
+          '[ -n "$$REDISCLI_AUTH" ] || unset REDISCLI_AUTH; valkey-cli ping | grep -q PONG',
+        ]
+      interval: 3s
+      retries: 10
+
+networks:
+  frontend: # web <-> api, plus internet for pnpm install
+  backend:
+    # api <-> db (not internal: dev publishes DB_PORT to the host)
+
+volumes:
+  node_modules:
+  api_node_modules:
+  web_node_modules:
+  db_node_modules:
+  nest_node_modules:
+  contracts_node_modules:
+  geo_node_modules:
+  ui_node_modules:
+  pnpm_store:
+  pg_data:
+  valkey_data:

@@ -1,0 +1,5 @@
+/dist
+/.tanstack
+# Copied by scripts/copy-assets.mjs
+/public/plugin/tinymce
+/public/styles

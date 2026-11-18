@@ -1,0 +1,157 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/users/index.md
+
+enum UserStatus {
+  @@type("pg/text@1")
+  active   = "active"
+  disabled = "disabled"
+}
+
+// A named set of permissions. The built-in roles (admin, editor, author) are
+// seeded with system = true and can't be edited or deleted; admins add their
+// own (ideas/users "Roles").
+model Role {
+  id          BigInt             @id @default(autoincrement())
+  // Stable handle in tokens and the api: 'admin', 'moderator'
+  key         Varchar(50)
+  name        Varchar(100)
+  description Text?
+  // Built-in: seeded by the api, immutable
+  system      Boolean            @default(false)
+  permissions RolePermission[]
+  users       User[]
+
+  createdAt   TimestamptzString  @default(now())
+  updatedAt   TimestamptzString  @default(now()) @onUpdate(now())
+  // Soft delete; refused while a user still has the role
+  deletedAt   TimestamptzString?
+
+  // Partial, so a deleted role's key can be reused
+  @@index(expression: sql`lower("key")`, where: sql`("deletedAt" IS NULL)`, unique: true, name: "roles_key_unique")
+}
+
+// The permissions the api knows how to enforce. The catalog is code
+// (users/domain/permissions.ts); the api upserts these rows at start-up, so
+// the table can't hold a permission no check reads.
+model Permission {
+  id    BigInt           @id @default(autoincrement())
+  // 'post:publish'
+  key   Varchar(100)     @unique
+  // Heading on the permissions page: 'Posts'
+  group Varchar(50)
+  label Varchar(255)
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       BigInt
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId BigInt
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  // Roles with a permission
+  @@index([permissionId])
+}
+
+model User {
+  id              BigInt            @id @default(autoincrement())
+
+  // Stored as entered; unique case-insensitively (index below)
+  email           Varchar(320)
+  emailVerifiedAt TimestamptzString?
+
+  // Full name as written; never built from the parts
+  displayName     Varchar(255)
+  // 'John'; NULL means use displayName
+  shortName       Varchar(100)?
+  givenName       Varchar(255)?
+  familyName      Varchar(255)?
+  // Optional contact number: ISO 3166-1 alpha-2 country ('VN') plus the
+  // national number without the trunk 0 ('901234567'); both or neither.
+  // The calling code and E.164 are computed (@packages/geo).
+  phoneCountry    Varchar(2)?
+  phoneNumber     Varchar(20)?
+  // Avatar: an AssetUsage (ownerType 'user', slot 'avatar')
+  // Language of their emails and notifications; NULL: the default locale
+  localeId        BigInt?
+  locale          Locale?           @relation(fields: [localeId], references: [id], onDelete: SetNull)
+
+  status          UserStatus        @default(active)  
+  // One role per user; Restrict, so a role in use can't be deleted
+  roleId          BigInt
+  role            Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  identities     UserIdentity[]
+  sessions        UserSession[]
+
+  createdAt       TimestamptzString @default(now())
+  updatedAt       TimestamptzString @default(now()) @onUpdate(now())
+  // Soft delete; normal queries filter on deletedAt = null
+  deletedAt       TimestamptzString?
+
+  // Partial, so a deleted user's email can sign up again
+  @@index([localeId])
+  @@index([roleId])
+  @@check(expression: sql`("phoneCountry" IS NULL) = ("phoneNumber" IS NULL)`, name: "users_phone_pair")
+  @@index(expression: sql`lower("email")`, where: sql`("deletedAt" IS NULL)`, unique: true, name: "users_email_unique")
+}
+
+// One row per login method
+model UserIdentity {
+  id             BigInt             @id @default(autoincrement())
+  userId         BigInt
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider       Varchar(32)
+  // 'password': the user id as text; OAuth: the provider's 'sub'
+  providerUserId Varchar(255)
+  // Argon2id hash; only for provider = 'password'
+  passwordHash   Varchar(255)?
+
+  // OAuth only, placeholders for now (nothing reads or writes them yet).
+  // Encrypt at rest before storing real tokens.
+  // Space-separated scopes granted
+  scope                 Text?
+  accessToken           Text?
+  accessTokenExpiresAt  TimestamptzString?
+  refreshToken          Text?
+  refreshTokenExpiresAt TimestamptzString?
+  idToken               Text?
+
+  createdAt      TimestamptzString  @default(now())
+  lastUsedAt     TimestamptzString?
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  // Only 'password' identities have a hash, and they always do
+  @@check(expression: sql`("provider" = 'password') = ("passwordHash" IS NOT NULL)`, name: "user_identities_password_hash")
+}
+
+// One row per signed-in device (ideas/users/sessions.md, option A). The
+// refresh token is opaque; only its SHA-256 is stored, so a db leak yields no
+// usable tokens. Access tokens stay stateless JWTs carrying the row's id.
+model UserSession {
+  id                BigInt             @id @default(autoincrement())
+  userId            BigInt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // SHA-256 of the refresh token, hex
+  tokenHash         Char(64)           @unique
+  // The token before the last rotation: grace window and reuse detection
+  previousTokenHash Char(64)?
+  rotatedAt         TimestamptzString?
+
+  // For the device list
+  userAgent         Varchar(512)?
+  ip                Varchar(45)?
+
+  createdAt         TimestamptzString  @default(now())
+  lastUsedAt        TimestamptzString  @default(now())
+  expiresAt         TimestamptzString
+  revokedAt         TimestamptzString?
+
+  @@index([previousTokenHash])
+  @@index([userId], where: sql`("revokedAt" IS NULL)`, name: "user_sessions_user_active")
+  @@index([expiresAt])
+}

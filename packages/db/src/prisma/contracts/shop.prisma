@@ -1,0 +1,415 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/orders/*.md
+// Money is BigInt minor units of the order's / shop's currency.
+
+model ProductCategory {
+  id        BigInt            @id @default(autoincrement())
+  // Plain tree, no closure table; cycles are refused in the domain
+  parentId  BigInt?
+  parent    ProductCategory?  @relation("ProductCategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  name      Varchar(255)
+  slug      Varchar(255)
+  // Order among siblings, ascending
+  position  Int               @default(0)
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt TimestamptzString?
+
+  @@index([slug], where: sql`("deletedAt" IS NULL)`, unique: true, name: "productCategories_slug_unique")
+  @@index([parentId])
+}
+
+enum ProductStatus {
+  @@type("pg/text@1")
+  draft    = "draft"
+  active   = "active"
+  archived = "archived"
+}
+
+model Product {
+  id          BigInt            @id @default(autoincrement())
+  categoryId  BigInt?
+  category    ProductCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name        Varchar(255)
+  slug        Varchar(255)
+  // Short summary: listings and the meta description
+  description Varchar(500)      @default("")
+  // Sanitized HTML (TinyMCE), like Post.content. Images are /files/... URLs
+  // of public assets, tracked as 'inline' asset usages.
+  content     String            @default("")
+  // One sale window for every variant (each variant has its own salePrice).
+  // NULL start: from now on; NULL end: until removed
+  saleStartsAt TimestamptzString?
+  saleEndsAt   TimestamptzString?
+  // Cached from live variants' listPrice, for listings and price sorts;
+  // written with every variant save
+  minPrice    BigInt            @default(0)
+  maxPrice    BigInt            @default(0)
+  options     ProductOption[]
+  variants    ProductVariant[]
+  gallery     ProductGalleryItem[]
+  status      ProductStatus     @default(draft)
+  // Cached from ProductRating; average = sum / count
+  ratingCount Int               @default(0)
+  ratingSum   Int               @default(0)
+  // Who created it; NULL for seeds and deleted users
+  createdById BigInt?
+  createdBy   User?             @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt   TimestamptzString?
+
+  @@index([slug], where: sql`("deletedAt" IS NULL)`, unique: true, name: "products_slug_unique")
+  @@index([categoryId])
+  @@index([createdById])
+  @@check(expression: sql`"saleEndsAt" IS NULL OR "saleStartsAt" IS NULL OR "saleEndsAt" > "saleStartsAt"`, name: "products_sale_window")
+  @@check(expression: sql`"minPrice" >= 0 AND "maxPrice" >= "minPrice"`, name: "products_price_range")
+}
+
+// The product's gallery, in order, each image with its own caption. Its own
+// table rather than an AssetUsage row, for the per-item fields.
+// Restrict on assetId: an asset in a gallery can't be deleted until removed.
+model ProductGalleryItem {
+  id          BigInt        @id @default(autoincrement())
+  productId   BigInt
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  assetId     BigInt
+  asset       Asset         @relation("ProductGalleryItems", fields: [assetId], references: [id], onDelete: Restrict)
+  title       Varchar(255)?
+  description Varchar(1000)?
+  // Order within the gallery; gaps are fine
+  position    Int           @default(0)
+
+  @@unique([productId, assetId])
+  @@index([assetId])
+}
+
+// An axis like "Size" or "Color". A product without options has one
+// variant with no values.
+model ProductOption {
+  id        BigInt               @id @default(autoincrement())
+  productId BigInt
+  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      Varchar(64)
+  position  Int                  @default(0)
+  values    ProductOptionValue[]
+
+  @@unique([productId, name])
+}
+
+model ProductOptionValue {
+  id       BigInt        @id @default(autoincrement())
+  optionId BigInt
+  option   ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  value    Varchar(64)
+  position Int           @default(0)
+
+  @@unique([optionId, value])
+}
+
+// What is actually sold: price, SKU and stock
+model ProductVariant {
+  id         BigInt                @id @default(autoincrement())
+  productId  BigInt
+  product    Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        Varchar(64)?
+  // Regular price. What it costs now (salePrice inside the product's sale
+  // window, else this) is computed in the api, never stored.
+  listPrice  BigInt
+  // NULL: not on sale
+  salePrice  BigInt?
+  // Stock is only counted when trackStock; turning it off keeps the number
+  trackStock Boolean               @default(false)
+  stock      Int                   @default(0)
+  position   Int                   @default(0)
+  values     ProductVariantValue[]
+  createdAt  TimestamptzString     @default(now())
+  updatedAt  TimestamptzString     @default(now()) @onUpdate(now())
+  deletedAt  TimestamptzString?
+
+  @@index([productId])
+  @@index([sku], where: sql`("sku" IS NOT NULL AND "deletedAt" IS NULL)`, unique: true, name: "product_variants_sku_unique")
+  @@check(expression: sql`"listPrice" >= 0`, name: "product_variants_list_price_positive")
+  @@check(expression: sql`"salePrice" IS NULL OR ("salePrice" >= 0 AND "salePrice" < "listPrice")`, name: "product_variants_sale_price_below_list")
+  @@check(expression: sql`"stock" >= 0`, name: "product_variants_stock_positive")
+}
+
+// The value a variant has for each option (one row per option); the domain
+// keeps combinations unique per product
+model ProductVariantValue {
+  variantId BigInt
+  variant   ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionId  BigInt
+  option    ProductOption      @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  valueId   BigInt
+  value     ProductOptionValue @relation(fields: [valueId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionId])
+  @@index([valueId])
+}
+
+model ProductRating {
+  id        BigInt            @id @default(autoincrement())
+  productId BigInt
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    BigInt
+  user      User              @relation("UserRatings", fields: [userId], references: [id], onDelete: Cascade)
+  stars     Int
+  body      Varchar(2000)?
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([productId, userId])
+  @@index([userId])
+  @@check(expression: sql`"stars" BETWEEN 1 AND 5`, name: "product_ratings_stars")
+}
+
+model Address {
+  id            BigInt            @id @default(autoincrement())
+  userId        BigInt
+  user          User              @relation("UserAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  label         Varchar(100)?
+  recipientName Varchar(255)
+  phone         Varchar(32)
+  line1         Varchar(255)
+  line2         Varchar(255)?
+  city          Varchar(255)
+  // ISO 3166-2, e.g. 'VN-HN'; NULL when typed freely (region holds the name)
+  regionCode    Varchar(10)?
+  // The region's name: copied from regionCode's subdivision, or typed
+  region        Varchar(255)?
+  postalCode    Varchar(32)?
+  // ISO 3166-1 alpha-2
+  countryCode   Varchar(2)
+  isDefault     Boolean           @default(false)
+  createdAt     TimestamptzString @default(now())
+  updatedAt     TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt     TimestamptzString?
+
+  @@index([userId])
+  // At most one default per user
+  @@index([userId], where: sql`("isDefault" AND "deletedAt" IS NULL)`, unique: true, name: "addresses_one_default")
+}
+
+enum OrderStatus {
+  @@type("pg/text@1")
+  pending    = "pending"
+  processing = "processing"
+  shipped    = "shipped"
+  delivered  = "delivered"
+  cancelled  = "cancelled"
+  // The shop refused it while pending (statusReason says why)
+  rejected   = "rejected"
+}
+
+enum PaymentMethod {
+  @@type("pg/text@1")
+  cod           = "cod"
+  bank_transfer = "bank_transfer"
+}
+
+enum PaymentStatus {
+  @@type("pg/text@1")
+  unpaid   = "unpaid"
+  paid     = "paid"
+  refunded = "refunded"
+}
+
+model Order {
+  id              BigInt            @id @default(autoincrement())
+  userId          BigInt?
+  user            User?             @relation("UserOrders", fields: [userId], references: [id], onDelete: SetNull)
+  status          OrderStatus       @default(pending)
+  // ISO 4217, copied from shop.currency
+  currency        Varchar(3)
+  subtotal        BigInt
+  // Sum of OrderCoupon.discount; 0 without coupons
+  discount        BigInt            @default(0)
+  coupons         OrderCoupon[]
+  shippingFee     BigInt
+  tax             BigInt
+  total           BigInt
+  // Copy of the address at checkout
+  shippingAddress Jsonb
+  // Who pays, for the invoice: an address copy plus company and taxCode;
+  // null means the shipping address with no company details
+  billingAddress  Jsonb?
+  trackingNumber  Varchar(100)?
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus     @default(unpaid)
+  paidAt          TimestamptzString?
+  note            Varchar(1000)?
+  // Why it was rejected or cancelled by staff; shown to the customer
+  statusReason    Varchar(500)?
+  items           OrderItem[]
+  createdAt       TimestamptzString @default(now())
+  updatedAt       TimestamptzString @default(now()) @onUpdate(now())
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@check(expression: sql`"total" = "subtotal" - "discount" + "shippingFee" + "tax"`, name: "orders_total_sum")
+  @@check(expression: sql`"discount" >= 0 AND "discount" <= "subtotal"`, name: "orders_discount_range")
+}
+
+enum CouponType {
+  @@type("pg/text@1")
+  // value is basis points (1000 = 10%)
+  percent = "percent"
+  // value is minor units of shop.currency
+  fixed   = "fixed"
+}
+
+// Rules in ideas/orders/coupons.md
+model Coupon {
+  id           BigInt            @id @default(autoincrement())
+  // Stored upper-case; customers type it in any case
+  code         Varchar(64)
+  description  Varchar(255)      @default("")
+  type         CouponType
+  value        BigInt
+  // Cap for percent coupons, minor units; NULL: no cap
+  maxDiscount  BigInt?
+  // Subtotal needed before the discount, minor units
+  minSubtotal  BigInt            @default(0)
+  // NULL start: from now on; NULL end: until removed
+  startsAt     TimestamptzString?
+  endsAt       TimestamptzString?
+  // NULL: unlimited. usedCount counts orders not cancelled/rejected.
+  usageLimit   Int?
+  perUserLimit Int?
+  usedCount    Int               @default(0)
+  // May be combined with other stackable coupons on one order
+  stackable    Boolean           @default(false)
+  active       Boolean           @default(true)
+  orders       OrderCoupon[]
+  createdAt    TimestamptzString @default(now())
+  updatedAt    TimestamptzString @default(now()) @onUpdate(now())
+  deletedAt    TimestamptzString?
+
+  @@index([code], where: sql`("deletedAt" IS NULL)`, unique: true, name: "coupons_code_unique")
+  @@check(expression: sql`"code" = upper("code")`, name: "coupons_code_upper")
+  @@check(expression: sql`"value" > 0 AND ("type" <> 'percent' OR "value" <= 10000)`, name: "coupons_value_range")
+  @@check(expression: sql`"usedCount" >= 0 AND ("usageLimit" IS NULL OR "usedCount" <= "usageLimit")`, name: "coupons_usage_limit")
+  @@check(expression: sql`"endsAt" IS NULL OR "startsAt" IS NULL OR "endsAt" > "startsAt"`, name: "coupons_window")
+}
+
+// Coupons applied to an order, with what each took off (applied percent
+// first, then fixed, each on what's left of the subtotal)
+model OrderCoupon {
+  id       BigInt      @id @default(autoincrement())
+  orderId  BigInt
+  order    Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // NULL once the coupon is hard-deleted; code keeps the copy
+  couponId BigInt?
+  coupon   Coupon?     @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  code     Varchar(64)
+  discount BigInt
+
+  @@unique([orderId, code])
+  @@index([couponId])
+  @@check(expression: sql`"discount" >= 0`, name: "order_coupons_discount_positive")
+}
+
+model OrderItem {
+  id        BigInt       @id @default(autoincrement())
+  orderId   BigInt
+  order     Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // NULL once the product is hard-deleted; the copies remain
+  productId BigInt?
+  product   Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  // NULL once the variant is hard-deleted; variantName keeps the copy
+  variantId   BigInt?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  name      Varchar(255)
+  // Option values at checkout, e.g. "M / Red"; '' without options
+  variantName Varchar(255)  @default("")
+  sku       Varchar(64)?
+  // Regular price at checkout, and what was charged per unit
+  listPrice BigInt
+  unitPrice BigInt
+  quantity  Int
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@check(expression: sql`"quantity" > 0`, name: "order_items_quantity_positive")
+}
+
+// Timeline: 'placed', 'status_changed', 'payment_changed'
+model OrderEvent {
+  id        BigInt            @id @default(autoincrement())
+  orderId   BigInt
+  order     Order             @relation("OrderEvents", fields: [orderId], references: [id], onDelete: Cascade)
+  type      Varchar(32)
+  data      Jsonb
+  actorId   BigInt?
+  actor     User?             @relation("OrderEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt TimestamptzString @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([actorId])
+}
+
+// A signed-in customer's cart: one row per variant (ideas/orders/cart.md).
+// Prices are never stored here; the cart shows what they cost now.
+model CartItem {
+  id        BigInt            @id @default(autoincrement())
+  userId    BigInt
+  user      User              @relation("UserCartItems", fields: [userId], references: [id], onDelete: Cascade)
+  variantId BigInt
+  variant   ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+  createdAt TimestamptzString @default(now())
+  updatedAt TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([userId, variantId])
+  @@index([variantId])
+  @@check(expression: sql`"quantity" > 0`, name: "cart_items_quantity_positive")
+}
+
+// Products a customer saved for later (ideas/orders/cart.md)
+model WishlistItem {
+  userId    BigInt
+  user      User              @relation("UserWishlist", fields: [userId], references: [id], onDelete: Cascade)
+  productId BigInt
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt TimestamptzString @default(now())
+
+  @@id([userId, productId])
+  @@index([productId])
+}
+
+// A product's text in a non-default locale (ideas/i18n/index.md)
+model ProductTranslation {
+  id          BigInt            @id @default(autoincrement())
+  productId   BigInt
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  localeId    BigInt
+  locale      Locale            @relation(fields: [localeId], references: [id], onDelete: Restrict)
+  name        Varchar(255)
+  slug        Varchar(255)
+  description Varchar(500)      @default("")
+  content     String            @default("")
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([productId, localeId])
+  @@index([localeId, slug], unique: true, name: "product_translations_slug_unique")
+}
+
+// A category's name and URL name in a non-default locale
+model ProductCategoryTranslation {
+  id         BigInt            @id @default(autoincrement())
+  categoryId BigInt
+  category   ProductCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  localeId   BigInt
+  locale     Locale            @relation(fields: [localeId], references: [id], onDelete: Restrict)
+  name       Varchar(255)
+  slug       Varchar(255)
+  createdAt  TimestamptzString @default(now())
+  updatedAt  TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([categoryId, localeId])
+  @@index([localeId, slug], unique: true, name: "product_category_translations_slug_unique")
+}

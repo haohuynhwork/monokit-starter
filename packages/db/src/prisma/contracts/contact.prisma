@@ -1,0 +1,48 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/contact/index.md
+
+enum ContactMessageStatus {
+  @@type("pg/text@1")
+  new      = "new"
+  read     = "read"
+  replied  = "replied"
+  spam     = "spam"
+  archived = "archived"
+}
+
+// How `message` is written: visitors type plain text; staff adding a
+// message in the panel use the rich-text editor (sanitized HTML)
+enum ContactMessageFormat {
+  @@type("pg/text@1")
+  text = "text"
+  html = "html"
+}
+
+// A visitor's message through a contactForm page block; stored first, then
+// mailed, so nothing is lost when mail is off or fails
+model ContactMessage {
+  id        BigInt               @id @default(autoincrement())
+  // Only the fields the block listed; email or phone is always set
+  name      Varchar(255)?
+  email     Varchar(320)?
+  phone     Varchar(50)?
+  subject   Varchar(255)?
+  message   String?
+  messageFormat ContactMessageFormat @default(text)
+
+  ip        Varchar(45)?
+  userAgent Varchar(512)?
+
+  status    ContactMessageStatus @default(new)
+  // When the mail was queued; NULL: mail off or failed
+  mailedAt  TimestamptzString?
+
+  createdAt TimestamptzString    @default(now())
+  updatedAt TimestamptzString    @default(now()) @onUpdate(now())
+  // Soft delete
+  deletedAt TimestamptzString?
+
+  // The inbox: per status, newest first
+  @@index([status, createdAt], where: sql`("deletedAt" IS NULL)`, name: "contact_messages_inbox")
+}

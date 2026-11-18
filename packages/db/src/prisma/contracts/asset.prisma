@@ -1,0 +1,114 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/storage/index.md
+enum AssetKind {
+  @@type("pg/text@1")
+  file = "file"
+  directory = "directory"
+  link = "link"
+}
+
+enum AssetVisibility {
+  @@type("pg/text@1")
+  public = "public"
+  private = "private"
+}
+
+model Asset {
+  id          BigInt            @id @default(autoincrement())
+  // Source of truth for the tree (one parent, subtree delete via cascade);
+  // AssetClosure is derived from it. Change both in one transaction.
+  parentId    BigInt?
+  parent      Asset?            @relation("AssetTree", fields: [parentId], references: [id], onDelete: Cascade)
+
+  kind        AssetKind         @default(file)
+  visibility  AssetVisibility   @default(private)
+
+  // Public, permanent and unique across backends: random '<uuid>.<ext>' for
+  // files, '<uuid>' for directories and links. Never derived from slug or
+  // filename. Rich text references an asset as 'serve/<key>'.
+  key         Varchar(1024)
+
+  // URL name, unique within the parent folder. May contain '/'.
+  slug        Varchar(255)
+  // Slugs of ancestors and self joined by '/'. Lookup by path only: never
+  // split or prefix-match it for tree queries; use AssetClosure.
+  fullSlug    Varchar(2048)
+  // Original name shown to users and used for downloads
+  filename    Varchar(255)
+
+  // File-only
+  mimeType    Varchar(255)?
+  sizeBytes   BigInt?
+  // Configured backend name (e.g. 'local', 's3-prod'), not the provider type
+  storage     Varchar(64)?
+  // Opaque object key in that backend; never derived from slug or filename.
+  // Unique per backend only, so never used to name the asset elsewhere.
+  storageKey  Varchar(1024)?
+  // Hex SHA-256 of the content
+  checksum    Varchar(64)?
+
+  // Link-only: absolute http(s) URL of an external resource
+  url         Varchar(2048)?
+
+  // Who created it; kept when the user is deleted
+  createdById BigInt?
+  createdBy   User?             @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   TimestamptzString @default(now())
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@unique([key])
+  @@unique([storage, storageKey])
+  // Not implied by the parent/slug index, since slugs may contain '/'
+  @@unique([fullSlug])
+  // Siblings have distinct slugs; COALESCE makes root-level slugs unique too
+  @@index(expression: sql`COALESCE("parentId", 0), "slug"`, unique: true, name: "assets_parent_slug_unique")
+  @@index([parentId])
+  @@index([createdById])
+
+  // Each kind has exactly its own columns
+  @@check(expression: sql`CASE "kind"
+    WHEN 'file' THEN "storage" IS NOT NULL AND "storageKey" IS NOT NULL AND "mimeType" IS NOT NULL AND "sizeBytes" IS NOT NULL AND "sizeBytes" >= 0 AND "checksum" IS NOT NULL AND "url" IS NULL
+    WHEN 'link' THEN "url" IS NOT NULL AND "storage" IS NULL AND "storageKey" IS NULL
+    ELSE "storage" IS NULL AND "storageKey" IS NULL AND "url" IS NULL AND "mimeType" IS NULL AND "sizeBytes" IS NULL
+  END`, name: "assets_kind_columns")
+  @@check(expression: sql`"slug" <> '' AND "slug" = btrim("slug")`, name: "assets_slug_not_blank")
+}
+
+// Every ancestor/descendant pair, including each asset with itself (depth 0)
+model AssetClosure {
+  descendantId BigInt
+  descendant   Asset  @relation("AssetClosureDescendant", fields: [descendantId], references: [id], onDelete: Cascade)
+  ancestorId   BigInt
+  ancestor     Asset  @relation("AssetClosureAncestor", fields: [ancestorId], references: [id], onDelete: Cascade)
+  depth        Int
+
+  @@id([ancestorId, descendantId])
+  // Breadcrumbs ("which folders contain this asset"); the id covers subtrees
+  @@index([descendantId, depth])
+  @@check(expression: sql`"depth" >= 0`, name: "asset_closure_depth")
+}
+
+// Where an asset is used: single slots (a user's avatar, a post's cover) and
+// ordered lists (a gallery, downloads). Records only the use itself, no
+// per-use data (captions etc. live in a typed table such as
+// ProductGalleryItem). Polymorphic, so no FK on the owner side: delete rows
+// with the owner. Single slots hold one asset per owner, enforced in the
+// domain (ASSET_SLOTS in apps/api storage/domain).
+model AssetUsage {
+  id        BigInt      @id @default(autoincrement())
+  // Restrict: an asset in use can't be deleted until it's detached
+  assetId   BigInt
+  asset     Asset       @relation("AssetUsages", fields: [assetId], references: [id], onDelete: Restrict)
+  ownerType Varchar(64)
+  ownerId   BigInt
+  // What the asset is for on this owner ('avatar', 'gallery', ...);
+  // allowed values per ownerType are checked in the domain
+  slot      Varchar(64)
+  // Order within (owner, slot); gaps are fine
+  position  Int         @default(0)
+
+  @@unique([ownerType, ownerId, slot, assetId])
+  @@index([assetId])
+}

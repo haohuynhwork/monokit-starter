@@ -1,0 +1,126 @@
+# Usage: cp .env.example .env && docker compose -f compose.prod.yaml up -d --build
+name: ${PROJECT_NAME:-monokit}
+
+# Logs go to the host's journald, so they outlive recreated containers
+# (json-file logs are deleted with the container). Retention: SystemMaxUse=
+# in /etc/systemd/journald.conf. Read: journalctl CONTAINER_NAME=monokit-api-1 -f
+# (docker logs / make prod-logs still work).
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+
+services:
+  web:
+    logging: *logging
+    networks: [frontend]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      # SSR reads and the /api, /serve, /assets proxy (src/start.ts)
+      API_URL: http://api:3001
+      API_PREFIX: ${API_PREFIX:-}
+    ports: ["${WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  api:
+    logging: *logging
+    networks: [frontend, backend]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-app}
+      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
+      APP_SECRET_PREVIOUS: ${APP_SECRET_PREVIOUS:-}
+      # Prefixes the /files and /assets URLs it hands out
+      # Base path of the /serve and /assets URLs it hands out, and links in
+      # emails (password reset)
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-}
+      API_PREFIX: ${API_PREFIX:-}
+      # Origin the api reports at GET / (it adds API_PREFIX)
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?set PUBLIC_API_URL in .env}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      # Mail queue (ideas/mail "Queue"); defaults to the valkey service below
+      VALKEY_URL: ${VALKEY_URL:-valkey://:${VALKEY_PASSWORD}@valkey:6379}
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-}
+    ports: ["${API_PORT:-3001}:3001"]
+    depends_on:
+      db: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      retries: 5
+
+  migrate:
+    logging: *logging
+    networks: [backend]
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: migrate }
+    restart: "no" # one-shot: exits after applying migrations
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-app}
+    depends_on:
+      db: { condition: service_healthy }
+
+  db:
+    logging: *logging
+    networks: [backend]
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes: [pg_data:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
+    # no published port: only reachable from api on the backend network
+  # Queued mail; AOF so jobs survive a restart
+  valkey:
+    logging: *logging
+    networks: [backend]
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    # AOF: queued jobs survive a restart. noeviction: BullMQ needs every key
+    # kept; at the memory cap, writes fail instead of jobs vanishing.
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${VALKEY_PASSWORD:?set VALKEY_PASSWORD in .env}
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-0}
+      - --maxmemory-policy
+      - noeviction
+    environment:
+      # valkey-cli (the healthcheck) authenticates with it
+      REDISCLI_AUTH: ${VALKEY_PASSWORD}
+    volumes: [valkey_data:/data]
+    healthcheck:
+      # valkey-cli exits 0 on an error reply too (e.g. NOAUTH): require PONG
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 5s
+      retries: 10
+    # no published port, like db
+
+networks:
+  frontend: # web <-> api, published ports
+  backend: # api <-> db and valkey only
+    internal: true # no route outside Docker
+
+volumes:
+  pg_data:
+  valkey_data:

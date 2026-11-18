@@ -1,0 +1,24 @@
+{
+  "name": "monokit",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "dev:api": "pnpm --filter @apps/api start:dev",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "prod:up": "docker compose -f compose.prod.yaml up -d --build",
+    "prod:down": "docker compose -f compose.prod.yaml down",
+    "docker:debug": "docker compose -f compose.yaml -f compose.debug.yaml up --build",
+    "docker:debug:migrate": "docker compose run --rm -p 127.0.0.1:9232:9232 -e NODE_OPTIONS=--inspect-brk=0.0.0.0:9232 migrate sh -c \"cd packages/db && exec ./node_modules/.bin/prisma db migrate\"",
+    "dev:web": "pnpm --filter @apps/web dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.2"
+  },
+  "packageManager": "pnpm@12.15.0"
+}

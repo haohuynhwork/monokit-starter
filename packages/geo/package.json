@@ -1,0 +1,26 @@
+{
+  "name": "@packages/geo",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "generate": "node scripts/generate.mjs"
+  },
+  "devDependencies": {
+    "country-region-data": "4.1.0",
+    "tsdown": "^0.23.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "libphonenumber-js": "^1.13.16"
+  }
+}

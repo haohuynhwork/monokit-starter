@@ -1,0 +1,17 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/configs/index.md
+
+// One row per set key; a missing row means the default from the api's
+// config-keys registry
+model Config {
+  id          BigInt            @id @default(autoincrement())
+  key         Varchar(100)      @unique
+  // Shape per key checked in the domain
+  value       Jsonb
+  updatedById BigInt?
+  updatedBy   User?             @relation("ConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   TimestamptzString @default(now()) @onUpdate(now())
+
+  @@index([updatedById])
+}

@@ -1,0 +1,33 @@
+// use prisma-8
+
+// Schema notes and rationale: ideas/audit/index.md
+// Append-only: rows are never updated; only the retention job deletes them.
+
+model AuditEvent {
+  id         BigInt            @id @default(autoincrement())
+  occurredAt TimestamptzString @default(now())
+
+  // Who did it; NULL for the system and anonymous attempts. No relation /
+  // foreign key: the log must outlive the user row.
+  actorId    BigInt?
+
+  // '<context>.<verb>', e.g. 'users.role_changed'; checked in code
+  action     Varchar(64)
+
+  // What it was done to; both NULL for actions without a target
+  entityType Varchar(32)?
+  entityId   Varchar(64)?
+
+  // Small, flat, action-specific details; never secrets
+  data       Jsonb
+
+  // Request context, when there was a request (same shape as UserSession)
+  ip         Varchar(45)?
+  userAgent  Varchar(512)?
+
+  // History of an entity; what a user did; admin list and retention
+  @@index([entityType, entityId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([occurredAt])
+  @@check(expression: sql`("entityType" IS NULL) = ("entityId" IS NULL)`, name: "audit_events_entity")
+}

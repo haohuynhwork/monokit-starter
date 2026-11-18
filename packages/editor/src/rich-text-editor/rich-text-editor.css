@@ -1,0 +1,792 @@
+/* TinyMCE chrome restyled with the app's design tokens (packages/ui).
+   The oxide skin loads after this file, so selectors start with `html` to
+   win on specificity. */
+
+html .tox {
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  color: var(--foreground);
+}
+
+/* Frame: same border, radius and focus ring as Input */
+html .tox.tox-tinymce {
+  /* Width from the page, not from the one-line toolbar: without this the
+     toolbar's width pushes the whole form wider than a phone screen */
+  contain: inline-size;
+  max-width: 100%;
+  /* oxide-dark paints .tox navy; it shows wherever the header and content
+     don't cover the frame (e.g. beside the toolbar) */
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+html .tox.tox-tinymce.tox-edit-focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+
+/* Toolbar */
+html .tox .tox-editor-header,
+html .tox .tox-toolbar,
+html .tox .tox-toolbar__primary,
+html .tox .tox-toolbar__overflow,
+html .tox .tox-toolbar-overlord {
+  background: var(--background);
+}
+html .tox:not(.tox-tinymce-inline) .tox-editor-header {
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  padding: 0;
+}
+html .tox .tox-toolbar__group:not(:last-of-type) {
+  border-right: 1px solid var(--border);
+}
+
+/* Toolbar buttons: like Button variant="ghost" size="icon-sm" */
+html .tox .tox-tbtn {
+  height: 2rem;
+  border-radius: var(--radius-md);
+  color: var(--muted-foreground);
+  background: transparent;
+}
+html .tox .tox-tbtn svg {
+  fill: currentColor;
+}
+html .tox .tox-tbtn:hover,
+html .tox .tox-tbtn:focus-visible,
+html .tox .tox-split-button:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: none;
+}
+html .tox .tox-tbtn--enabled,
+html .tox .tox-tbtn--enabled:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+html .tox .tox-tbtn--disabled,
+html .tox .tox-tbtn--disabled:hover {
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
+html .tox .tox-tbtn__select-label {
+  font-size: 0.875rem;
+}
+
+/* Status bar */
+html .tox .tox-statusbar {
+  background: var(--background);
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+html .tox .tox-statusbar a,
+html .tox .tox-statusbar__path-item,
+html .tox .tox-statusbar__wordcount {
+  color: var(--muted-foreground);
+}
+
+/* Menus and popovers: like DropdownMenu */
+html .tox .tox-menu,
+html .tox .tox-pop__dialog,
+html .tox .tox-collection--list {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+html .tox .tox-collection__item {
+  border-radius: var(--radius-sm);
+  color: var(--popover-foreground);
+}
+/* The skin's rules carry :not(--state-disabled), so ours repeat it to win.
+   Checked (enabled) items show only their check mark, like the app's
+   menus; the highlighted (active) item gets the accent. */
+html
+  .tox
+  .tox-collection--list
+  .tox-collection__item--enabled:not(.tox-collection__item--state-disabled) {
+  background: transparent;
+  color: var(--popover-foreground);
+}
+html
+  .tox
+  .tox-collection--list
+  .tox-collection__item--active:not(.tox-collection__item--state-disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border: 0;
+}
+
+/* Dialogs: like Dialog */
+html .tox .tox-dialog-wrap__backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+html .tox .tox-dialog {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.15);
+}
+html .tox .tox-dialog__header,
+html .tox .tox-dialog__body,
+html .tox .tox-dialog__footer {
+  background: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+/* Oxide sets its own font on these; use the app's */
+html
+  .tox
+  :is(
+    .tox-dialog__title,
+    .tox-label,
+    .tox-checkbox__label,
+    .tox-button,
+    .tox-textfield,
+    .tox-textarea,
+    .tox-listbox--select,
+    .tox-selectfield select,
+    .tox-dialog__body,
+    .tox-dialog__body-nav-item
+  ) {
+  font-family: inherit;
+}
+html .tox .tox-dialog__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+/* Field spacing and height like the app's forms (Label gap-2, Input h-9) */
+html .tox .tox-dialog__body .tox-form__group {
+  margin-bottom: calc(var(--spacing) * 4);
+}
+html .tox .tox-label {
+  padding-bottom: calc(var(--spacing) * 2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+html .tox .tox-textfield {
+  min-height: calc(var(--spacing) * 9);
+  padding: var(--spacing) calc(var(--spacing) * 3);
+}
+html .tox .tox-label,
+html .tox .tox-dialog__body-nav-item {
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+html .tox .tox-dialog__body-nav-item--active {
+  border-bottom-color: var(--primary);
+  color: var(--foreground);
+}
+
+/* Fields: like Input */
+html .tox .tox-textfield,
+html .tox .tox-textarea,
+html .tox .tox-listboxfield .tox-listbox--select,
+html .tox .tox-selectfield select,
+html .tox .tox-toolbar-textfield {
+  background: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+}
+html .tox .tox-textfield:focus,
+html .tox .tox-textarea:focus,
+html .tox .tox-listboxfield .tox-listbox--select:focus,
+html .tox .tox-selectfield select:focus,
+html .tox .tox-toolbar-textfield:focus {
+  /* oxide-dark's :focus rule outranks ours and brings back its navy */
+  background: transparent;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+
+/* Buttons: like Button default / outline */
+html .tox .tox-button {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+html .tox .tox-button:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--primary) 90%, transparent);
+  border-color: transparent;
+}
+html .tox .tox-button--secondary,
+html .tox .tox-button--naked {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border);
+}
+html .tox .tox-button--naked {
+  border-color: transparent;
+}
+html .tox .tox-button--secondary:hover:not(:disabled),
+html .tox .tox-button--naked:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-color: var(--border);
+}
+/* Oxide's focus outline (::before) has its own 6px radius; follow the button's */
+html .tox .tox-button::before {
+  border-radius: var(--radius-lg);
+}
+html .tox .tox-button--icon svg,
+html .tox .tox-button--naked svg {
+  fill: currentColor;
+}
+
+/* Oxide's blue (#006ce7 / #a6ccf7) focus and selected states */
+html .tox {
+  --tox-private-color-tint: var(--primary);
+  --tox-private-keyboard-focus-outline-color: var(--ring);
+  --tox-private-button-primary-background-color: var(--primary);
+  --tox-private-button-primary-border-color: var(--primary);
+  --tox-private-button-primary-active-background-color: var(--primary);
+  --tox-private-button-primary-active-border-color: var(--primary);
+  --tox-private-button-primary-enabled-background-color: var(--primary);
+  --tox-private-button-primary-enabled-border-color: var(--primary);
+  --tox-private-button-secondary-enabled-background-color: var(--muted);
+  --tox-private-checkbox-selected-color: var(--primary);
+  --tox-private-checkbox-indeterminate-color: var(--primary);
+  --tox-private-checkbox-focus-box-shadow: 0 0 0 3px
+    color-mix(in oklch, var(--ring) 50%, transparent);
+}
+/* The frame shows the focus ring; drop the inner blue border */
+html .tox .tox-edit-area::before {
+  display: none;
+}
+html .tox .tox-tbtn:focus {
+  background: transparent;
+}
+html .tox .tox-tbtn:focus::after,
+html .tox .tox-tbtn--enabled:focus::after,
+html .tox .tox-mbtn:focus:not(:disabled)::after,
+html .tox .tox-collection--grid .tox-collection__item--active:focus::after,
+html .tox .tox-collection--toolbar .tox-collection__item--active:focus::after {
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 70%, transparent);
+}
+html .tox .tox-tbtn:focus:not(.tox-tbtn--disabled),
+html .tox .tox-tbtn:hover svg,
+html .tox .tox-tbtn:focus:not(.tox-tbtn--disabled) svg {
+  color: var(--foreground);
+  fill: currentColor;
+}
+html .tox .tox-tbtn:hover {
+  color: var(--foreground);
+}
+html .tox .tox-mbtn--active,
+html .tox .tox-collection--grid .tox-collection__item--enabled,
+html .tox .tox-collection--toolbar .tox-collection__item--enabled {
+  background: var(--muted);
+  color: var(--foreground);
+}
+html
+  .tox
+  .tox-collection--list
+  .tox-collection__item--active:not(.tox-collection__item--state-disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+/* Insert-table grid: the menu's colors, not oxide-dark's navy */
+html .tox .tox-insert-table-picker {
+  background: var(--popover);
+}
+html .tox .tox-insert-table-picker > div {
+  border-color: var(--border);
+}
+html .tox .tox-insert-table-picker .tox-insert-table-picker__selected {
+  background: var(--primary);
+  /* Gaps in the menu's color: --border is too faint on the fill */
+  border-color: var(--popover);
+  filter: none;
+}
+html .tox .tox-insert-table-picker__label {
+  color: var(--popover-foreground);
+}
+html .tox .tox-dialog__body-nav-item:focus {
+  background: var(--accent);
+}
+html .tox .tox-custom-editor:focus-within,
+html .tox .tox-focusable-wrapper:focus,
+html .tox .tox-textarea-wrap:focus-within,
+html .tox .tox-navobj-bordered-focus.tox-navobj-bordered::before,
+html .tox .tox-notification:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+html .tox .tox-naked-btn {
+  color: var(--primary);
+}
+
+/* Menubar: like the toolbar buttons. Oxide's open-menu rule
+   (.tox-mbtn--active, light blue) is more specific than a plain override,
+   so every state is spelled out here. */
+html .tox .tox-menubar {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+html .tox .tox-mbtn,
+html .tox .tox-mbtn:focus:not(:disabled) {
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+html .tox .tox-mbtn:hover:not(:disabled):not(.tox-mbtn--active) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+/* The open menu's button, focused or not */
+html .tox .tox-mbtn.tox-mbtn--active,
+html .tox .tox-mbtn:not(:disabled).tox-mbtn--active:focus,
+html .tox .tox-mbtn:not(:disabled).tox-mbtn--active:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+html .tox .tox-mbtn:focus:not(:disabled)::after {
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 70%, transparent);
+}
+html .tox .tox-mbtn[disabled] {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+/* Dialog and popup buttons: TinyMCE reads their colors (including the blue
+   focus outline) from these variables. Generated from oxide's skin.min.css. */
+html .tox {
+  --tox-private-button-focus-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-focus-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-focus-outline: 0 0 0 3px
+    color-mix(in oklch, var(--ring) 50%, transparent);
+  --tox-private-button-focus-text-color: var(--primary-foreground);
+  --tox-private-button-naked-active-background-color: var(--accent);
+  --tox-private-button-naked-active-border-color: transparent;
+  --tox-private-button-naked-active-text-color: var(--foreground);
+  --tox-private-button-naked-disabled-text-color: var(--muted-foreground);
+  --tox-private-button-naked-enabled-active-background-color: var(--muted);
+  --tox-private-button-naked-enabled-active-border-color: var(--muted);
+  --tox-private-button-naked-enabled-active-text-color: var(--foreground);
+  --tox-private-button-naked-enabled-background-color: var(--muted);
+  --tox-private-button-naked-enabled-border-color: var(--muted);
+  --tox-private-button-naked-enabled-focus-background-color: var(--muted);
+  --tox-private-button-naked-enabled-focus-border-color: var(--muted);
+  --tox-private-button-naked-enabled-focus-text-color: var(--foreground);
+  --tox-private-button-naked-enabled-hover-background-color: var(--muted);
+  --tox-private-button-naked-enabled-hover-border-color: var(--muted);
+  --tox-private-button-naked-enabled-hover-text-color: var(--foreground);
+  --tox-private-button-naked-enabled-text-color: var(--foreground);
+  --tox-private-button-naked-focus-background-color: var(--accent);
+  --tox-private-button-naked-focus-border-color: transparent;
+  --tox-private-button-naked-focus-text-color: var(--foreground);
+  --tox-private-button-naked-hover-background-color: var(--accent);
+  --tox-private-button-naked-hover-text-color: var(--foreground);
+  --tox-private-button-naked-text-color: var(--foreground);
+  --tox-private-button-primary-active-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-active-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-active-text-color: var(--primary-foreground);
+  --tox-private-button-primary-background-color: var(--primary);
+  --tox-private-button-primary-border-color: var(--primary);
+  --tox-private-button-primary-disabled-background-color: color-mix(
+    in oklch,
+    var(--primary) 50%,
+    var(--background)
+  );
+  --tox-private-button-primary-disabled-border-color: color-mix(
+    in oklch,
+    var(--primary) 50%,
+    var(--background)
+  );
+  --tox-private-button-primary-disabled-text-color: color-mix(
+    in oklch,
+    var(--primary-foreground) 70%,
+    transparent
+  );
+  --tox-private-button-primary-enabled-active-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-active-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-active-text-color: var(
+    --primary-foreground
+  );
+  --tox-private-button-primary-enabled-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-focus-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-focus-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-focus-text-color: var(
+    --primary-foreground
+  );
+  --tox-private-button-primary-enabled-hover-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-hover-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-enabled-hover-text-color: var(
+    --primary-foreground
+  );
+  --tox-private-button-primary-enabled-text-color: var(--primary-foreground);
+  --tox-private-button-primary-focus-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-focus-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-focus-text-color: var(--primary-foreground);
+  --tox-private-button-primary-hover-background-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-hover-border-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--background)
+  );
+  --tox-private-button-primary-hover-text-color: var(--primary-foreground);
+  --tox-private-button-primary-text-color: var(--primary-foreground);
+  --tox-private-button-secondary-active-background-color: var(--accent);
+  --tox-private-button-secondary-active-border-color: var(--border);
+  --tox-private-button-secondary-active-text-color: var(--foreground);
+  --tox-private-button-secondary-background-color: transparent;
+  --tox-private-button-secondary-border-color: var(--border);
+  --tox-private-button-secondary-disabled-background-color: transparent;
+  --tox-private-button-secondary-disabled-border-color: var(--border);
+  --tox-private-button-secondary-disabled-text-color: var(--muted-foreground);
+  --tox-private-button-secondary-enabled-active-background-color: var(--muted);
+  --tox-private-button-secondary-enabled-active-border-color: var(--muted);
+  --tox-private-button-secondary-enabled-active-text-color: var(--foreground);
+  --tox-private-button-secondary-enabled-background-color: var(--muted);
+  --tox-private-button-secondary-enabled-border-color: var(--muted);
+  --tox-private-button-secondary-enabled-focus-background-color: var(--muted);
+  --tox-private-button-secondary-enabled-focus-border-color: var(--muted);
+  --tox-private-button-secondary-enabled-focus-text-color: var(--foreground);
+  --tox-private-button-secondary-enabled-hover-background-color: var(--muted);
+  --tox-private-button-secondary-enabled-hover-border-color: var(--muted);
+  --tox-private-button-secondary-enabled-hover-text-color: var(--foreground);
+  --tox-private-button-secondary-enabled-text-color: var(--foreground);
+  --tox-private-button-secondary-focus-background-color: var(--accent);
+  --tox-private-button-secondary-focus-border-color: var(--border);
+  --tox-private-button-secondary-focus-text-color: var(--foreground);
+  --tox-private-button-secondary-hover-background-color: var(--accent);
+  --tox-private-button-secondary-hover-border-color: var(--border);
+  --tox-private-button-secondary-hover-text-color: var(--foreground);
+  --tox-private-button-secondary-outline-active-background-color: var(--accent);
+  --tox-private-button-secondary-outline-active-border-color: var(--border);
+  --tox-private-button-secondary-outline-active-text-color: var(--foreground);
+  --tox-private-button-secondary-outline-border-color: var(--border);
+  --tox-private-button-secondary-outline-disabled-background-color: transparent;
+  --tox-private-button-secondary-outline-disabled-border-color: var(--border);
+  --tox-private-button-secondary-outline-disabled-text-color: var(
+    --muted-foreground
+  );
+  --tox-private-button-secondary-outline-focus-background-color: var(--accent);
+  --tox-private-button-secondary-outline-focus-border-color: var(--border);
+  --tox-private-button-secondary-outline-focus-text-color: var(--foreground);
+  --tox-private-button-secondary-outline-hover-background-color: var(--accent);
+  --tox-private-button-secondary-outline-hover-border-color: var(--border);
+  --tox-private-button-secondary-outline-hover-text-color: var(--foreground);
+  --tox-private-button-secondary-outline-text-color: var(--foreground);
+  --tox-private-button-secondary-text-color: var(--foreground);
+}
+
+/* Picker grids (symbols, emoji, colors) and toolbar collections. Oxide's
+   rules carry :not(.tox-collection__item--state-disabled), so ours repeat
+   it to win. */
+html .tox .tox-collection--grid .tox-collection__item {
+  border-radius: var(--radius-sm);
+}
+html
+  .tox
+  .tox-collection--grid
+  .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+html
+  .tox
+  .tox-collection--toolbar
+  .tox-collection__item--active:not(
+    .tox-collection__item--state-disabled
+  ):hover,
+html
+  .tox
+  .tox-collection--toolbar
+  .tox-collection__item--active:not(
+    .tox-collection__item--state-disabled
+  ):focus {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+html
+  .tox
+  .tox-collection--toolbar
+  .tox-collection__item--active:not(.tox-collection__item--state-disabled) {
+  background-color: transparent;
+  color: var(--foreground);
+}
+html
+  .tox
+  .tox-collection--grid
+  .tox-collection__item--enabled:not(.tox-collection__item--state-disabled),
+html
+  .tox
+  .tox-collection--toolbar
+  .tox-collection__item--enabled:not(.tox-collection__item--state-disabled) {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+html
+  .tox
+  .tox-collection--grid
+  .tox-collection__item--active:not(
+    .tox-collection__item--state-disabled
+  ):focus::after,
+html
+  .tox
+  .tox-collection--toolbar
+  .tox-collection__item--active:not(
+    .tox-collection__item--state-disabled
+  ):focus::after {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 70%, transparent) inset;
+}
+/* Lists (menus, dropdowns): the highlighted row */
+html
+  .tox
+  .tox-collection--list
+  .tox-collection__item--active:not(.tox-collection__item--state-disabled) {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Format previews in menus (paragraph styles, fonts, sizes): TinyMCE
+   copies each format's look from the editing area as inline styles,
+   including a background and a fixed text color, which then ignore the
+   row's hover and selected colors. Keep the size, weight and font; take
+   the row's colors. Inline styles need !important. */
+html .tox .tox-collection__item-label > *,
+html .tox .tox-collection__item-label > * * {
+  background: transparent !important;
+  color: inherit !important;
+  border-color: currentColor !important;
+}
+html .tox .tox-collection__item-label > pre {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Source view highlighting (plugins/source-editor.ts) */
+:root {
+  --code-tag: #0550ae;
+  --code-attr: #8250df;
+  --code-string: #0a3069;
+  --code-comment: #6e7781;
+  --code-keyword: #cf222e;
+  --code-number: #0550ae;
+}
+.dark {
+  --code-tag: #7ee787;
+  --code-attr: #d2a8ff;
+  --code-string: #a5d6ff;
+  --code-comment: #8b949e;
+  --code-keyword: #ff7b72;
+  --code-number: #79c0ff;
+}
+
+/* The editing iframe: the skin paints it white (both oxide skins), which
+   shows through the content's transparent scrollbar track */
+html .tox .tox-edit-area__iframe {
+  background-color: var(--background);
+}
+
+/* CodeMirror inside the source view: oxide resets every element under .tox
+   (height: auto, position: static, ...), more specifically than
+   CodeMirror's own root rule, so the editor grew to its content and never
+   scrolled. Put back what scrolling needs. */
+html .tox .cm-editor {
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+html .tox .cm-editor .cm-scroller {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+html .tox .cm-editor .cm-gutters {
+  position: sticky;
+  left: 0;
+  height: auto;
+  min-height: 100%;
+}
+html .tox .cm-editor .cm-content {
+  white-space: pre-wrap;
+}
+
+/* Image dialog's Upload tab: oxide-dark keeps the drop area white */
+html .tox .tox-dropzone {
+  background: var(--muted);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted-foreground);
+}
+html .tox .tox-dropzone p {
+  color: var(--muted-foreground);
+}
+
+/* Tooltips like the app's (packages/ui tooltip), not the skin's blue-grey */
+html .tox .tox-tooltip__body {
+  background-color: var(--foreground);
+  color: var(--background);
+  border-radius: var(--radius-md);
+  font-weight: 400;
+  outline: none;
+  padding: 6px 12px;
+}
+/* The arrow's solid side depends on where the tooltip sits */
+html .tox .tox-tooltip--down .tox-tooltip__arrow {
+  border-top-color: var(--foreground);
+}
+html .tox .tox-tooltip--up .tox-tooltip__arrow {
+  border-bottom-color: var(--foreground);
+}
+html .tox .tox-tooltip--right .tox-tooltip__arrow {
+  border-left-color: var(--foreground);
+}
+html .tox .tox-tooltip--left .tox-tooltip__arrow {
+  border-right-color: var(--foreground);
+}
+
+/* Source code view panel: the app's background, not oxide-dark's navy */
+html .tox .tox-view-wrap,
+html .tox .tox-view-wrap__slot-container,
+html .tox .tox-view {
+  background-color: var(--background);
+}
+
+/* Other oxide-dark navy surfaces: context toolbars (image, table, link),
+   dropdown panels and the popover arrows */
+html .tox .tox-context-toolbar,
+html .tox .tox-dropdown-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+html .tox .tox-pop.tox-pop--bottom::after {
+  border-top-color: var(--popover);
+}
+html .tox .tox-pop.tox-pop--top::after {
+  border-bottom-color: var(--popover);
+}
+html .tox .tox-pop.tox-pop--left::after {
+  border-right-color: var(--popover);
+}
+html .tox .tox-pop.tox-pop--right::after {
+  border-left-color: var(--popover);
+}
+
+/* The rest of oxide-dark's navy and blue backgrounds, selector by selector
+   (same selectors as the skin, plus `html`, so these win) */
+html .tox .tox-sidebar,
+html .tox .tox-floating-sidebar,
+html .tox .tox-collection--horizontal,
+html .tox .tox-toolbar-input-form,
+html .tox .tox-expandable-box,
+html .tox .tox-expandable-box__title,
+html .tox .tox-accordion__item,
+html .tox .tox-accordion__item.tox-accordion__item--expanded,
+html .tox .tox-dialog-wrap__backdrop--opaque {
+  background-color: var(--background);
+}
+/* Toolbar controls: the Paragraph / font dropdowns, font size, pressed
+   buttons and split-button focus */
+html .tox .tox-tbtn--bespoke,
+html .tox .tox-number-input,
+html .tox .tox-tag {
+  background-color: transparent;
+}
+html .tox .tox-tbtn--active,
+html .tox .tox-tbtn--enabled,
+html .tox .tox-tbtn--enabled:hover,
+html .tox .tox-split-button__main:focus,
+html .tox .tox-split-button__chevron:focus,
+html .tox .tox-number-input .tox-input-wrapper:focus,
+html .tox .tox-button--secondary--outline:focus:not(:disabled),
+html .tox .tox-accordion__header:hover:not(.tox-accordion__header--disabled) {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+html .tox .tox-button.tox-button--enabled {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-foreground);
+}
+html .tox .tox-expandable-box__content--overflowing::after {
+  background: linear-gradient(transparent, var(--background));
+}
+
+/* The upgrade-promotion slot: empty with `promotion: false`, but still
+   rendered (navy) beside the menubar. Hide it and give the menubar the row. */
+html .tox .tox-promotion {
+  display: none;
+}
+html .tox .tox-promotion + .tox-menubar {
+  grid-column: 1 / -1;
+}

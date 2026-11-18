@@ -1,0 +1,6 @@
+# Dev container stack: ../compose.yaml, including its `workspace` service (devcontainer profile).
+name: ${PROJECT_NAME:-monokit}
+
+include:
+  - path: ../compose.yaml
+    project_directory: .. # resolve paths and .env from the repo root
